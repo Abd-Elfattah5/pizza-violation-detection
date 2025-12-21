@@ -1,0 +1,301 @@
+# ══════════════════════════════════════════════════════════════
+# DOCKER COMPOSE CONFIGURATION
+# ══════════════════════════════════════════════════════════════
+#
+# This file defines all services (containers) for our application.
+# Start everything with: docker compose up --build
+# Stop everything with:  docker compose down
+#
+# ══════════════════════════════════════════════════════════════
+
+version: '3.8'                  # Docker Compose file format version
+                                # 3.8 is a modern, stable version
+                                # Determines which features are available
+
+
+services:                       # Section where we define all our containers
+                                # Each service becomes a container when running
+
+
+  # ════════════════════════════════════════════════════════════
+  # RABBITMQ - Message Broker
+  # ════════════════════════════════════════════════════════════
+  # Purpose: Routes messages between Frame Reader, Detection, and Streaming
+  # Like a post office that delivers letters between services
+  # ════════════════════════════════════════════════════════════
+  
+  rabbitmq:
+    image: rabbitmq:3-management        # Official RabbitMQ image from Docker Hub
+                                        # "3" = RabbitMQ version 3.x
+                                        # "-management" = includes web UI for monitoring
+                                        # We don't build this - just download and use
+    
+    container_name: rabbitmq            # Give the container a friendly name
+                                        # Without this: "pizza-violation-detection-rabbitmq-1"
+                                        # With this: just "rabbitmq" (cleaner in logs)
+    
+    ports:                              # Expose ports to host machine
+      - "5672:5672"                      # AMQP port - where services send messages
+                                        # "host:container" format
+                                        # Access from code: localhost:5672
+      
+      - "15672:15672"                    # Management UI port
+                                        # Open browser: http://localhost:15672
+                                        # Login: guest / guest
+                                        # See queues, messages, connections
+    
+    environment:                        # Environment variables for RabbitMQ
+      RABBITMQ_DEFAULT_USER: guest      # Create this user on startup
+      RABBITMQ_DEFAULT_PASS: guest      # Password for the user
+    
+    healthcheck:                        # Define how Docker checks if service is ready
+      test: ["CMD", "rabbitmq-diagnostics", "ping"]
+                                        # Command to run: rabbitmq-diagnostics ping
+                                        # Returns 0 if healthy, non-zero if not
+      interval: 10s                     # Check every 10 seconds
+      timeout: 5s                       # If check takes > 5s, consider failed
+      retries: 5                        # After 5 failures, mark as unhealthy
+                                        # Used by depends_on: condition: service_healthy
+    
+    networks:                           # Connect to our custom network
+      - pizza-network                   # All services on this network can talk
+
+
+  # ════════════════════════════════════════════════════════════
+  # POSTGRESQL - Database
+  # ════════════════════════════════════════════════════════════
+  # Purpose: Stores video info, violations, and ROI configurations
+  # Persistent storage that survives container restarts
+  # ════════════════════════════════════════════════════════════
+  
+  postgres:
+    image: postgres:15                  # Official PostgreSQL version 15
+                                        # Stable, well-supported version
+    
+    container_name: postgres
+    
+    ports:
+      - "5432:5432"                      # PostgreSQL default port
+                                        # Can connect with: psql -h localhost -p 5432
+    
+    environment:
+      POSTGRES_DB: violations_db        # Create this database on first startup
+      POSTGRES_USER: postgres           # Superuser username
+      POSTGRES_PASSWORD: postgres123    # Superuser password
+                                        # PostgreSQL REQUIRES a password to be set
+    
+    volumes:                            # Mount storage into the container
+      - postgres_data:/var/lib/postgresql/data
+                                        # Named volume for database files
+                                        # "postgres_data" = volume name (defined below)
+                                        # "/var/lib/..." = where PostgreSQL stores data
+                                        # Data persists even if container is deleted!
+      
+      - ./database/init.sql:/docker-entrypoint-initdb.d/init.sql
+                                        # Bind mount: map our file into container
+                                        # "./database/init.sql" = file on our machine
+                                        # PostgreSQL runs all .sql files in
+                                        # /docker-entrypoint-initdb.d/ on FIRST startup
+                                        # This creates our tables automatically!
+    
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+                                        # pg_isready: built-in PostgreSQL health check
+                                        # -U postgres: check as user "postgres"
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    
+    networks:
+      - pizza-network
+
+
+  # ════════════════════════════════════════════════════════════
+  # FRAME READER SERVICE
+  # ════════════════════════════════════════════════════════════
+  # Purpose: Reads video files frame by frame
+  # Publishes each frame to RabbitMQ for processing
+  # ════════════════════════════════════════════════════════════
+  
+  frame-reader:
+    build:                              # Build image from our code (not download)
+      context: ./services/frame_reader  # Folder containing Dockerfile and code
+      dockerfile: Dockerfile            # Name of the Dockerfile to use
+    
+    container_name: frame-reader
+    
+    depends_on:                         # Don't start until these are ready
+      rabbitmq:
+        condition: service_healthy      # Wait for RabbitMQ health check to pass
+                                        # Without this, frame-reader might start
+                                        # before RabbitMQ is ready to accept connections
+    
+    environment:                        # Environment variables for our Python code
+      - RABBITMQ_HOST=rabbitmq          # Use container name as hostname
+                                        # Docker DNS resolves "rabbitmq" to its IP
+      - RABBITMQ_PORT=5672
+      - RABBITMQ_USER=guest
+      - RABBITMQ_PASS=guest
+      - VIDEO_PATH=/videos/sample.mp4   # Path INSIDE the container
+    
+    volumes:
+      - ./videos:/videos:ro             # Mount videos folder
+                                        # "./videos" = folder on our machine
+                                        # "/videos" = path inside container
+                                        # ":ro" = read-only (can't modify videos)
+    
+    networks:
+      - pizza-network
+
+
+  # ════════════════════════════════════════════════════════════
+  # DETECTION SERVICE
+  # ════════════════════════════════════════════════════════════
+  # Purpose: The "brain" - runs YOLO detection and violation logic
+  # Consumes frames from RabbitMQ, processes them, saves violations
+  # ════════════════════════════════════════════════════════════
+  
+  detection:
+    build:
+      context: ./services/detection
+      dockerfile: Dockerfile
+    
+    container_name: detection
+    
+    depends_on:
+      rabbitmq:
+        condition: service_healthy      # Need RabbitMQ for messages
+      postgres:
+        condition: service_healthy      # Need PostgreSQL to save violations
+    
+    environment:
+      - RABBITMQ_HOST=rabbitmq
+      - RABBITMQ_PORT=5672
+      - RABBITMQ_USER=guest
+      - RABBITMQ_PASS=guest
+      - POSTGRES_HOST=postgres
+      - POSTGRES_PORT=5432
+      - POSTGRES_DB=violations_db
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=postgres123
+      - MODEL_PATH=/app/models/yolo_model.pt    # Path to YOLO model inside container
+      - CONFIDENCE_THRESHOLD=0.5
+    
+    volumes:
+      - ./violations:/violations        # Mount violations folder (read-write)
+                                        # No ":ro" so we can WRITE violation images
+    
+    deploy:                             # Deployment configuration
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia            # Use NVIDIA GPU driver
+              count: 1                  # Reserve 1 GPU
+              capabilities: [gpu]       # Enable GPU compute capabilities
+                                        # This gives the container access to your T4 GPU!
+                                        # Without this, YOLO runs on CPU (very slow)
+    
+    networks:
+      - pizza-network
+
+
+  # ════════════════════════════════════════════════════════════
+  # STREAMING SERVICE (FastAPI)
+  # ════════════════════════════════════════════════════════════
+  # Purpose: Backend API server
+  # - REST API for video info, violations, ROI config
+  # - WebSocket for real-time video streaming to frontend
+  # ════════════════════════════════════════════════════════════
+  
+  streaming:
+    build:
+      context: ./services/streaming
+      dockerfile: Dockerfile
+    
+    container_name: streaming
+    
+    ports:
+      - "8000:8000"                      # FastAPI default port
+                                        # Access API: http://localhost:8000
+                                        # Access docs: http://localhost:8000/docs
+                                        # (FastAPI auto-generates documentation!)
+    
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+    
+    environment:
+      - RABBITMQ_HOST=rabbitmq
+      - RABBITMQ_PORT=5672
+      - RABBITMQ_USER=guest
+      - RABBITMQ_PASS=guest
+      - POSTGRES_HOST=postgres
+      - POSTGRES_PORT=5432
+      - POSTGRES_DB=violations_db
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=postgres123
+    
+    volumes:
+      - ./violations:/violations:ro     # Read-only access to violation images
+                                        # Streaming service serves these via API
+    
+    networks:
+      - pizza-network
+
+
+  # ════════════════════════════════════════════════════════════
+  # FRONTEND (Nginx)
+  # ════════════════════════════════════════════════════════════
+  # Purpose: Serves the web UI (HTML, CSS, JavaScript)
+  # Users open this in their browser to see the video and violations
+  # ════════════════════════════════════════════════════════════
+  
+  frontend:
+    build:
+      context: ./services/frontend
+      dockerfile: Dockerfile
+    
+    container_name: frontend
+    
+    ports:
+      - "80:80"                          # Standard HTTP port
+                                        # Access at: http://localhost
+                                        # (port 80 is default, so no :80 needed in URL)
+    
+    depends_on:
+      - streaming                       # Simple dependency (no health check)
+                                        # Frontend needs streaming API to be available
+    
+    networks:
+      - pizza-network
+
+
+# ══════════════════════════════════════════════════════════════
+# NETWORKS
+# ══════════════════════════════════════════════════════════════
+# Custom network for all our containers to communicate
+# ══════════════════════════════════════════════════════════════
+
+networks:
+  pizza-network:                        # Network name
+    driver: bridge                      # Network type
+                                        # "bridge" = default Docker network type
+                                        # Creates an isolated network
+                                        # Containers can reach each other by name
+                                        # e.g., "postgres:5432" from detection service
+
+
+# ══════════════════════════════════════════════════════════════
+# VOLUMES
+# ══════════════════════════════════════════════════════════════
+# Named volumes for persistent data storage
+# ══════════════════════════════════════════════════════════════
+
+volumes:
+  postgres_data:                        # Named volume for PostgreSQL data
+                                        # Docker manages where this is stored
+                                        # Data survives: docker compose down
+                                        # Data deleted: docker compose down -v
+                                        #               (the -v flag removes volumes)

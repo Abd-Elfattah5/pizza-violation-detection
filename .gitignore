@@ -1,0 +1,90 @@
+# ══════════════════════════════════════════════════════════════
+# PYTHON GENERATED FILES
+# These are created automatically when Python runs your code
+# They can always be regenerated, so no need to track them
+# ══════════════════════════════════════════════════════════════
+
+__pycache__/        # Folder where Python stores compiled bytecode (.pyc files)
+                    # Created in every folder that has .py files you run
+                    # Different for each Python version, so can't be shared
+
+*.py[cod]           # Pattern matching .pyc, .pyo, .pyd files
+                    # .pyc = compiled Python bytecode (speeds up loading)
+                    # .pyo = optimized bytecode (older Python versions)
+                    # .pyd = Python DLL files (Windows compiled extensions)
+
+*$py.class          # Jython compiled files (Python running on Java VM)
+                    # Rare, but good to exclude just in case
+
+*.so                # Shared Object files - compiled C/C++ extensions for Python
+                    # Linux/Mac specific, won't work on other systems
+
+.Python             # Marker file created by some virtual environment tools
+
+venv/               # Standard virtual environment folder name
+ENV/                # Alternative virtual environment folder name
+env/                # Another common virtual environment name
+.venv/              # Hidden virtual environment folder
+                    # These contain installed packages - recreate with: pip install -r requirements.txt
+
+
+# ══════════════════════════════════════════════════════════════
+# IDE / EDITOR SETTINGS
+# These contain YOUR personal preferences - not relevant to others
+# Each developer has their own settings
+# ══════════════════════════════════════════════════════════════
+
+.vscode/            # VS Code workspace settings
+                    # Contains: settings.json, launch.json, extensions.json
+                    # Your font size, theme, debugger config - personal choices
+
+.idea/              # JetBrains IDEs (PyCharm, IntelliJ) project settings
+                    # Contains project-specific configurations
+
+*.swp               # Vim swap files (created when editing files in Vim)
+*.swo               # Vim swap file variants
+*~                  # Backup files created by some editors
+
+
+# ══════════════════════════════════════════════════════════════
+# LOGS
+# Generated during runtime - can grow very large
+# Different on every machine and every run
+# ══════════════════════════════════════════════════════════════
+
+*.log               # Any file ending in .log
+logs/               # Common folder name for log files
+
+
+# ══════════════════════════════════════════════════════════════
+# PYTHON PACKAGING / DISTRIBUTION
+# Created when building Python packages for distribution
+# Can be regenerated with: python setup.py build
+# ══════════════════════════════════════════════════════════════
+
+dist/               # Distribution folder - contains built packages
+build/              # Build artifacts - intermediate files during packaging
+*.egg-info/         # Package metadata folder
+*.egg               # Python egg format (older package format)
+
+
+# ══════════════════════════════════════════════════════════════
+# JUPYTER NOTEBOOKS
+# Auto-save checkpoints - Jupyter creates these automatically
+# ══════════════════════════════════════════════════════════════
+
+.ipynb_checkpoints/ # Jupyter auto-saves your notebooks here
+                    # Can be recovered from the main .ipynb file
+
+
+# ══════════════════════════════════════════════════════════════
+# NOTE: FILES WE ARE INTENTIONALLY KEEPING IN THIS REPO
+# (Normally these would be ignored, but we want them for submission)
+# ══════════════════════════════════════════════════════════════
+
+.env           - Keeping for easy setup (no real secrets)
+# NOT ignored: *.pt           - YOLO model file (required for project)
+# NOT ignored: *.mp4, *.mkv   - Test videos (required for demo)
+# NOT ignored: violations/    - Generated violation images (for demo)
+DS_Store      - Mac files (minor, keeping as requested)
+Thumbs.db      - Windows files (minor, keeping as requested)
