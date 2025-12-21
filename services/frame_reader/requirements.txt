@@ -1,0 +1,7 @@
+# ══════════════════════════════════════════════════════════════
+# FRAME READER SERVICE - Dependencies
+# ══════════════════════════════════════════════════════════════
+
+opencv-python-headless==4.9.0.80    # Video reading (no GUI)
+pika==1.3.2                          # RabbitMQ client
+python-dotenv==1.0.1                 # Environment variable loading
