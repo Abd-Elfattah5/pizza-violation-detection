@@ -1,0 +1,31 @@
+# ══════════════════════════════════════════════════════════════
+# STREAMING SERVICE - Dependencies
+# ══════════════════════════════════════════════════════════════
+
+# --------------------------------------------------------------
+# FastAPI - Modern Web Framework
+# --------------------------------------------------------------
+fastapi>=0.109.0                # Web framework for building APIs
+uvicorn[standard]>=0.27.0       # ASGI server to run FastAPI
+                                # [standard] includes websockets support
+
+# --------------------------------------------------------------
+# WebSockets
+# --------------------------------------------------------------
+websockets>=12.0                # WebSocket support for real-time streaming
+
+# --------------------------------------------------------------
+# RabbitMQ Client
+# --------------------------------------------------------------
+pika>=1.3.0                     # Message queue communication
+
+# --------------------------------------------------------------
+# PostgreSQL Client
+# --------------------------------------------------------------
+psycopg2-binary>=2.9.0          # PostgreSQL database driver
+
+# --------------------------------------------------------------
+# Utilities
+# --------------------------------------------------------------
+python-dotenv>=1.0.0            # Environment variable loading
+python-multipart>=0.0.6         # Form data parsing (for file uploads)
